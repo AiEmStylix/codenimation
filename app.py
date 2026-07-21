@@ -3,7 +3,9 @@ import os
 import subprocess
 import re
 from openai import OpenAI
+from dotenv import load_dotenv
 
+load_dotenv()
 # ==========================================
 # 1. CẤU HÌNH API TRUNG GIAN (BEEKNOEE)
 # ==========================================

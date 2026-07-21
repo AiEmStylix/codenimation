@@ -10,3 +10,4 @@ medias/
 media/
 # Virtual environments
 .venv
+.env
