@@ -4,6 +4,7 @@ import subprocess
 import re
 from openai import OpenAI
 from dotenv import load_dotenv
+from generators import generate_script, generate_manim_code
 
 load_dotenv()
 # ==========================================
@@ -19,54 +20,8 @@ client = OpenAI(
 ) if api_key else None
 
 # ==========================================
-# 2. HÀM ĐỌC FILE PROMPT
+# 2. CÁC HÀM PIPELINE (OPENAI COMPATIBLE)
 # ==========================================
-def load_prompt_from_file(filename: str) -> str:
-    """Đọc nội dung từ file Markdown."""
-    if not os.path.exists(filename):
-        st.error(f"❌ Không tìm thấy file `{filename}`. Vui lòng tạo file này cùng thư mục với `app.py`.")
-        st.stop()
-    
-    with open(filename, "r", encoding="utf-8") as f:
-        return f.read()
-
-# ==========================================
-# 3. CÁC HÀM PIPELINE (OPENAI COMPATIBLE)
-# ==========================================
-def generate_script(math_problem: str) -> str:
-    system_instruction = load_prompt_from_file("SCRIPT_GENERATOR.md")
-    
-    response = client.chat.completions.create(
-        model="gemini-2.5-pro",
-        messages=[
-            {"role": "system", "content": system_instruction},
-            {"role": "user", "content": f"Tạo kịch bản cho bài toán sau:\n{math_problem}"}
-        ],
-        temperature=0.7
-    )
-    return response.choices[0].message.content
-
-def generate_manim_code(script: str) -> str:
-    system_instruction = load_prompt_from_file("CODE_GENERATOR.md")
-    
-    response = client.chat.completions.create(
-        model="gemini-2.5-pro",
-        messages=[
-            {"role": "system", "content": system_instruction},
-            {"role": "user", "content": f"Viết code Manim cho kịch bản sau:\n{script}"}
-        ],
-        temperature=0.2
-    )
-    
-    raw_code = response.choices[0].message.content
-    
-    # Xử lý an toàn: Xóa các thẻ markdown
-    raw_code = re.sub(r"^```python\s*", "", raw_code)
-    raw_code = re.sub(r"^```\s*", "", raw_code)
-    raw_code = re.sub(r"\s*```$", "", raw_code)
-    
-    return raw_code
-
 def render_video(filename="math_scene.py", scene_name="MathProblemScene"):
     # Lệnh chạy Manim (-ql: 480p 15fps)
     command = ["manim", "-ql", filename, scene_name]
@@ -108,13 +63,13 @@ with col2:
             try:
                 # Bước 1: Sinh kịch bản
                 st.write("⏳ Đang phân tích bài toán & đọc file `SCRIPT_GENERATOR.md`...")
-                script = generate_script(math_input)
+                script = generate_script(math_input, client)
                 with st.expander("📝 Xem kịch bản được tạo"):
                     st.text(script)
                 
                 # Bước 2: Sinh Code Manim
                 st.write("⏳ Đang dịch kịch bản sang code Python & đọc file `CODE_GENERATOR.md`...")
-                code = generate_manim_code(script)
+                code = generate_manim_code(script, client)
                 with st.expander("💻 Xem code Python"):
                     st.code(code, language="python")
                 
