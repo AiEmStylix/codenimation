@@ -2,9 +2,12 @@ import streamlit as st
 import os
 import subprocess
 import re
+import json
 from openai import OpenAI
 from dotenv import load_dotenv
 from generators import generate_script, generate_manim_code
+from extract_animation_timings import extract_timings, build_tts_blocks
+from collect_results import collect_session_results
 
 load_dotenv()
 # ==========================================
@@ -23,9 +26,23 @@ client = OpenAI(
 # 2. CÁC HÀM PIPELINE (OPENAI COMPATIBLE)
 # ==========================================
 def render_video(filename="math_scene.py", scene_name="MathProblemScene"):
-    # Lệnh chạy Manim (-ql: 480p 15fps)
+    """Render Manim scene thành video (-ql: 480p 15fps)."""
     command = ["manim", "-ql", filename, scene_name]
     subprocess.run(command, check=True, capture_output=True, text=True)
+
+
+def extract_and_save_timings(manim_file: str, include_tts_blocks: bool = True) -> tuple[dict, str]:
+    """
+    Phân tích file Manim và lưu timings.json cạnh file đó.
+    Trả về (timings_dict, đường dẫn file json).
+    """
+    timings = extract_timings(manim_file)
+    if include_tts_blocks:
+        timings["tts_blocks"] = build_tts_blocks(timings)
+    out_path = os.path.splitext(manim_file)[0] + "_timings.json"
+    with open(out_path, "w", encoding="utf-8") as fh:
+        json.dump(timings, fh, ensure_ascii=False, indent=2)
+    return timings, out_path
 
 # ==========================================
 # 4. GIAO DIỆN STREAMLIT WEB APP
@@ -66,24 +83,43 @@ with col2:
                 script = generate_script(math_input, client)
                 with st.expander("📝 Xem kịch bản được tạo"):
                     st.text(script)
-                
+
                 # Bước 2: Sinh Code Manim
                 st.write("⏳ Đang dịch kịch bản sang code Python & đọc file `CODE_GENERATOR.md`...")
                 code = generate_manim_code(script, client)
                 with st.expander("💻 Xem code Python"):
                     st.code(code, language="python")
-                
+
                 # Bước 3: Lưu file
                 st.write("⏳ Đang lưu file hệ thống...")
-                with open("math_scene.py", "w", encoding="utf-8") as f:
+                manim_file = "math_scene.py"
+                with open(manim_file, "w", encoding="utf-8") as f:
                     f.write(code)
-                
+
                 # Bước 4: Render
                 st.write("🎞️ Đang đưa vào Manim Engine để render video...")
-                render_video("math_scene.py", "MathProblemScene")
-                
+                render_video(manim_file, "MathProblemScene")
+
+                # Bước 5: Trích xuất timing animation → JSON
+                st.write("⏱️ Đang trích xuất thời lượng animation...")
+                timings_dict, timings_path = extract_and_save_timings(manim_file)
+                st.session_state["timings"] = timings_dict
+                with st.expander("🕐 Xem Animation Timings"):
+                    st.json(timings_dict)
+
+                # Bước 6: Thu gom kết quả vào thư mục results/
+                st.write("📦 Đang lưu kết quả vào thư mục `results/`...")
+                session_dir = collect_session_results(
+                    topic=math_input,
+                    script_text=script,
+                    code_file=manim_file,
+                    video_file=video_path,
+                    timings_dict=timings_dict,
+                )
+                st.session_state["session_dir"] = str(session_dir)
+
                 status.update(label="🎉 Hoàn tất Pipeline!", state="complete", expanded=False)
-                
+
             except subprocess.CalledProcessError as e:
                 status.update(label="❌ Lỗi khi render Manim", state="error", expanded=True)
                 st.error("Manim Engine gặp lỗi khi biên dịch đoạn code được tạo.")
@@ -97,12 +133,31 @@ with col2:
     if os.path.exists(video_path):
         st.success("Video hoạt hình của bạn đã sẵn sàng!")
         st.video(video_path)
-        
-        with open(video_path, "rb") as v_file:
-            st.download_button(
-                label="📥 Tải Video MP4",
-                data=v_file,
-                file_name="math_animation.mp4",
-                mime="video/mp4",
-                use_container_width=True
-            )
+
+        col_dl, col_json = st.columns(2)
+        with col_dl:
+            with open(video_path, "rb") as v_file:
+                st.download_button(
+                    label="📥 Tải Video MP4",
+                    data=v_file,
+                    file_name="math_animation.mp4",
+                    mime="video/mp4",
+                    use_container_width=True
+                )
+
+        # Nút tải timings JSON (nếu đã có)
+        timings_path = os.path.join(cwd, "math_scene_timings.json")
+        with col_json:
+            if os.path.exists(timings_path):
+                with open(timings_path, "rb") as tj:
+                    st.download_button(
+                        label="⏱️ Tải Timings JSON",
+                        data=tj,
+                        file_name="math_scene_timings.json",
+                        mime="application/json",
+                        use_container_width=True
+                    )
+
+    # Hiển thị đường dẫn thư mục kết quả nếu có
+    if "session_dir" in st.session_state:
+        st.info(f"📁 Kết quả đã được lưu tại: `{st.session_state['session_dir']}`")
