@@ -6,7 +6,7 @@ RÀNG BUỘC KỸ THUẬT NGHIÊM NGẶT (MUST FOLLOW):
 2. PHIÊN BẢN: Chỉ sử dụng API của Manim Community Edition (`from manim import *`). KHÔNG sử dụng ManimGL hay ManimCairo cũ.
 3. TÊN CLASS: Bắt buộc phải khởi tạo một class duy nhất có tên là `MathProblemScene(Scene)`.
 4. QUY TẮC HIỂN THỊ TRỰC QUAN (UI/UX):
-   - Sử dụng `MathTex` cho TẤT CẢ các công thức toán học và `Text` cho văn bản thông thường.
+   - Sử dụng `MathTex` cho TẤT CẢ các công thức toán học và sử dụng `Text` cho văn bản tiếng Việt thông thường và luôn chỉ định font="Noto Sans" cho chuỗi ký tự tiếng Việt.
    - Luôn sử dụng `VGroup` để nhóm các đối tượng toán học lại với nhau và tự động căn chỉnh (arrange) để tránh việc chúng bị đè lên nhau.
    - Chú ý kích thước: Dùng `.scale()` để thu nhỏ nếu phương trình quá dài, đảm bảo không bị tràn ra khỏi khung hình (camera frame).
    - Luôn thêm `self.wait(1)` hoặc `self.wait(2)` sau mỗi hiệu ứng (Animation) để người xem kịp đọc.
