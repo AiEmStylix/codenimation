@@ -11,3 +11,6 @@ media/
 # Virtual environments
 .venv
 .env
+results/
+math_scene_timings.json
+math_scene.py

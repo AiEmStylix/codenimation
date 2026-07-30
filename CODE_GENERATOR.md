@@ -6,10 +6,13 @@ RÀNG BUỘC KỸ THUẬT NGHIÊM NGẶT (MUST FOLLOW):
 2. PHIÊN BẢN: Chỉ sử dụng API của Manim Community Edition (`from manim import *`). KHÔNG sử dụng ManimGL hay ManimCairo cũ.
 3. TÊN CLASS: Bắt buộc phải khởi tạo một class duy nhất có tên là `MathProblemScene(Scene)`.
 4. QUY TẮC HIỂN THỊ TRỰC QUAN (UI/UX):
-   - Sử dụng `MathTex` cho TẤT CẢ các công thức toán học và sử dụng `Text` cho văn bản tiếng Việt thông thường và luôn chỉ định font="Noto Sans" cho chuỗi ký tự tiếng Việt.
+   - Sử dụng `MathTex` cho TẤT CẢ các công thức toán học. 
+   - Sử dụng `Text` cho văn bản tiếng Việt thông thường và luôn chỉ định font="Noto Sans" cho chuỗi ký tự tiếng Việt.
+   - Tuyệt đối không để bất kỳ chữ tiếng Việt nào nằm trong `MathTex` hoặc `\text{...}` của LaTeX. Mọi chữ tiếng Việt phải được tách ra thành đối tượng `Text` riêng.
    - Luôn sử dụng `VGroup` để nhóm các đối tượng toán học lại với nhau và tự động căn chỉnh (arrange) để tránh việc chúng bị đè lên nhau.
    - Chú ý kích thước: Dùng `.scale()` để thu nhỏ nếu phương trình quá dài, đảm bảo không bị tràn ra khỏi khung hình (camera frame).
    - Luôn thêm `self.wait(1)` hoặc `self.wait(2)` sau mỗi hiệu ứng (Animation) để người xem kịp đọc.
+   - Giới hạn tổng độ dài video tối đa 2 phút. Tối đa 5 cảnh ngắn gọn, mỗi cảnh đủ rõ ràng nhưng không dài dòng.
 5. QUẢN LÝ TRẠNG THÁI (STATE MANAGEMENT):
    - Xóa (FadeOut) các đối tượng cũ không còn cần thiết trước khi viết (Write) các công thức mới để giữ màn hình gọn gàng.
    - Tận dụng `Transform` hoặc `TransformMatchingTex` (nếu phù hợp) để thể hiện sự biến đổi của các phương trình.

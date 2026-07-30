@@ -28,7 +28,18 @@ client = OpenAI(
 def render_video(filename="math_scene.py", scene_name="MathProblemScene"):
     """Render Manim scene thành video (-ql: 480p 15fps)."""
     command = ["manim", "-ql", filename, scene_name]
-    subprocess.run(command, check=True, capture_output=True, text=True)
+    env = os.environ.copy()
+    env["PYTHONUTF8"] = "1"
+    env["PYTHONIOENCODING"] = "utf-8"
+    subprocess.run(
+        command,
+        check=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        env=env,
+    )
 
 
 def extract_and_save_timings(manim_file: str, include_tts_blocks: bool = True) -> tuple[dict, str]:
