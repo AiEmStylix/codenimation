@@ -15,5 +15,15 @@ YÊU CẦU CỐT LÕI:
 - THỜI GIAN CHỜ: {Ví dụ: Chờ 2 giây để người xem đọc.}
 
 LƯU Ý DÀNH CHO BẠN:
-- Giữ số lượng cảnh dưới 6 cảnh để video không quá dài.
+- Giữ số lượng cảnh dưới 6 - 8 cảnh để video không quá dài.
 - Luôn đảm bảo không gian trên màn hình không bị chật kín. Khi chuyển sang phần tính toán mới, hãy thêm hiệu ứng xóa màn hình (FadeOut) ở cảnh trước đó.
+- BẮT BUỘC cảnh đầu tiên phải hiển thị rõ ràng đề bài/bài toán để học sinh đọc hiểu trước khi vào lời giải.
+- Sau khi đề bài đã được trình bày, mới bắt đầu từng bước giải.
+- BẮT BUỘC mỗi cảnh chỉ hiển thị 1-2 ý chính, không nhồi quá nhiều công thức hoặc nội dung cùng lúc.
+- KHÔNG lặp lại cùng một công thức hoặc đề bài nhiều lần trong cùng một cảnh.
+- Nên yêu cầu model mô tả “đề bài nằm ở phần trên hoặc góc màn hình, giải thích xuất hiện từng bước”.
+PHONG CÁCH CHO BÀI GIẢNG LỚP 6:
+- Dùng phong cách bảng lớp học: nền xanh nhạt hoặc trắng nhẹ, giống bảng viết, không dùng nền đen.
+- Nếu có thể, mô tả thêm một hình tượng giáo viên nhỏ, đơn giản đứng bên cạnh bảng hoặc ở góc màn hình. Không cần nhân vật chi tiết, chỉ cần biểu tượng dễ thương và thân thiện.
+- Nội dung cần được trình bày như đang viết trên bảng: mỗi dòng xuất hiện rõ ràng, ít chữ, kích thước chữ đủ lớn để dễ đọc.
+- Ưu tiên animation nhẹ nhàng, mượt mà và dễ theo dõi; mỗi cảnh chỉ nên có 1-2 hiệu ứng chính.

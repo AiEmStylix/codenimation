@@ -1,56 +1,29 @@
 {
   "source_file": "math_scene.py",
   "scene_name": "MathProblemScene",
-  "total_duration": 60.0,
+  "total_duration": 41.0,
   "segments": [
     {
       "index": 1,
-      "line": 14,
+      "line": 7,
       "scene_label": null,
       "type": "animation",
-      "call": "self.play(FadeIn(title))",
+      "call": "self.play(Write(title))",
       "run_time": null,
       "duration": 1.0
     },
     {
       "index": 2,
-      "line": 15,
+      "line": 14,
       "scene_label": null,
-      "type": "wait",
-      "call": "self.wait(1)",
+      "type": "animation",
+      "call": "self.play(FadeIn(m_set))",
       "run_time": null,
       "duration": 1.0
     },
     {
       "index": 3,
-      "line": 16,
-      "scene_label": null,
-      "type": "animation",
-      "call": "self.play(Write(eq_A))",
-      "run_time": null,
-      "duration": 1.0
-    },
-    {
-      "index": 4,
-      "line": 17,
-      "scene_label": null,
-      "type": "wait",
-      "call": "self.wait(1)",
-      "run_time": null,
-      "duration": 1.0
-    },
-    {
-      "index": 5,
-      "line": 18,
-      "scene_label": null,
-      "type": "animation",
-      "call": "self.play(Write(eq_B))",
-      "run_time": null,
-      "duration": 1.0
-    },
-    {
-      "index": 6,
-      "line": 19,
+      "line": 15,
       "scene_label": null,
       "type": "wait",
       "call": "self.wait(3)",
@@ -58,459 +31,235 @@
       "duration": 3.0
     },
     {
-      "index": 7,
-      "line": 22,
-      "scene_label": "[SCENE 2]",
+      "index": 4,
+      "line": 16,
+      "scene_label": null,
       "type": "animation",
-      "call": "self.play(FadeOut(title), FadeOut(eq_B))",
+      "call": "self.play(FadeOut(title), FadeOut(m_set))",
+      "run_time": null,
+      "duration": 1.0
+    },
+    {
+      "index": 5,
+      "line": 28,
+      "scene_label": null,
+      "type": "animation",
+      "call": "self.play(Create(number_line), FadeIn(dots))",
+      "run_time": null,
+      "duration": 1.0
+    },
+    {
+      "index": 6,
+      "line": 29,
+      "scene_label": null,
+      "type": "animation",
+      "call": "self.play(Create(circle_6), Create(circle_10))",
+      "run_time": null,
+      "duration": 1.0
+    },
+    {
+      "index": 7,
+      "line": 30,
+      "scene_label": null,
+      "type": "animation",
+      "call": "self.play(Indicate(highlight_nums))",
       "run_time": null,
       "duration": 1.0
     },
     {
       "index": 8,
-      "line": 23,
-      "scene_label": "[SCENE 2]",
+      "line": 31,
+      "scene_label": null,
       "type": "animation",
-      "call": "self.play(eq_A.animate.to_edge(UP, buff=1.5))",
+      "call": "self.play(highlight_nums.animate.shift(UP * 0.5))",
       "run_time": null,
       "duration": 1.0
     },
     {
       "index": 9,
-      "line": 24,
-      "scene_label": "[SCENE 2]",
+      "line": 32,
+      "scene_label": null,
       "type": "wait",
-      "call": "self.wait(1)",
+      "call": "self.wait(4)",
       "run_time": null,
-      "duration": 1.0
+      "duration": 4.0
     },
     {
       "index": 10,
-      "line": 26,
-      "scene_label": "[SCENE 2]",
+      "line": 33,
+      "scene_label": null,
       "type": "animation",
-      "call": "self.play(eq_A[1].animate.set_color(YELLOW))",
+      "call": "self.play(FadeOut(number_line), FadeOut(dots), FadeOut(circle_6), FadeOut(circle_10), FadeOut(highlight_nums), FadeOut(labels))",
       "run_time": null,
       "duration": 1.0
     },
     {
       "index": 11,
-      "line": 33,
-      "scene_label": "[SCENE 2]",
+      "line": 41,
+      "scene_label": null,
       "type": "animation",
-      "call": "self.play(FadeIn(exp_N, shift=RIGHT))",
+      "call": "self.play(Write(MarkupText('Câu a: Điền kí hiệu', font='Noto Sans').to_edge(UP)))",
       "run_time": null,
       "duration": 1.0
     },
     {
       "index": 12,
-      "line": 34,
-      "scene_label": "[SCENE 2]",
-      "type": "wait",
-      "call": "self.wait(1)",
+      "line": 42,
+      "scene_label": null,
+      "type": "animation",
+      "call": "self.play(Write(q1.set_color(RED)), Write(q2.set_color(BLUE)))",
       "run_time": null,
       "duration": 1.0
     },
     {
       "index": 13,
-      "line": 36,
-      "scene_label": "[SCENE 2]",
+      "line": 43,
+      "scene_label": null,
       "type": "animation",
-      "call": "self.play(eq_A[3].animate.set_color(GREEN))",
+      "call": "self.play(FadeIn(legend))",
       "run_time": null,
       "duration": 1.0
     },
     {
       "index": 14,
-      "line": 39,
-      "scene_label": "[SCENE 2]",
-      "type": "animation",
-      "call": "self.play(FadeIn(cond_A, shift=UP))",
+      "line": 44,
+      "scene_label": null,
+      "type": "wait",
+      "call": "self.wait(4)",
       "run_time": null,
-      "duration": 1.0
+      "duration": 4.0
     },
     {
       "index": 15,
-      "line": 40,
-      "scene_label": "[SCENE 2]",
-      "type": "wait",
-      "call": "self.wait(1)",
+      "line": 45,
+      "scene_label": null,
+      "type": "animation",
+      "call": "self.play(FadeOut(q1), FadeOut(q2), FadeOut(legend))",
       "run_time": null,
       "duration": 1.0
     },
     {
       "index": 16,
-      "line": 45,
-      "scene_label": "[SCENE 4]",
+      "line": 50,
+      "scene_label": null,
       "type": "animation",
-      "call": "self.play(Create(nums_A[i]), run_time=0.4)",
-      "run_time": 0.4,
-      "duration": 0.4
-    },
-    {
-      "index": 17,
-      "line": 47,
-      "scene_label": "[SCENE 4]",
-      "type": "animation",
-      "call": "self.play(Write(nums_A[i + 1]), run_time=0.2)",
-      "run_time": 0.2,
-      "duration": 0.2
-    },
-    {
-      "index": 18,
-      "line": 48,
-      "scene_label": "[SCENE 2]",
-      "type": "wait",
-      "call": "self.wait(1)",
+      "call": "self.play(Write(c1_text))",
       "run_time": null,
       "duration": 1.0
     },
     {
+      "index": 17,
+      "line": 51,
+      "scene_label": null,
+      "type": "animation",
+      "call": "self.play(Write(m_list))",
+      "run_time": null,
+      "duration": 1.0
+    },
+    {
+      "index": 18,
+      "line": 52,
+      "scene_label": null,
+      "type": "wait",
+      "call": "self.wait(3)",
+      "run_time": null,
+      "duration": 3.0
+    },
+    {
       "index": 19,
       "line": 53,
-      "scene_label": "[SCENE 2]",
+      "scene_label": null,
       "type": "animation",
-      "call": "self.play(ReplacementTransform(nums_A, res_A))",
+      "call": "self.play(FadeOut(c1_text), FadeOut(m_list))",
       "run_time": null,
       "duration": 1.0
     },
     {
       "index": 20,
-      "line": 54,
-      "scene_label": "[SCENE 2]",
+      "line": 59,
+      "scene_label": null,
       "type": "animation",
-      "call": "self.play(Create(box_A))",
+      "call": "self.play(Write(c2_text))",
       "run_time": null,
       "duration": 1.0
     },
     {
       "index": 21,
-      "line": 55,
-      "scene_label": "[SCENE 2]",
-      "type": "wait",
-      "call": "self.wait(4)",
+      "line": 60,
+      "scene_label": null,
+      "type": "animation",
+      "call": "self.play(Write(m_prop))",
       "run_time": null,
-      "duration": 4.0
+      "duration": 1.0
     },
     {
       "index": 22,
-      "line": 58,
-      "scene_label": "[SCENE 3]",
+      "line": 61,
+      "scene_label": null,
       "type": "animation",
-      "call": "self.play(FadeOut(eq_A), FadeOut(exp_N), FadeOut(cond_A), FadeOut(res_A), FadeOut(box_A))",
+      "call": "self.play(Create(rect))",
       "run_time": null,
       "duration": 1.0
     },
     {
       "index": 23,
-      "line": 59,
-      "scene_label": "[SCENE 3]",
+      "line": 62,
+      "scene_label": null,
       "type": "wait",
-      "call": "self.wait(1)",
+      "call": "self.wait(3)",
       "run_time": null,
-      "duration": 1.0
+      "duration": 3.0
     },
     {
       "index": 24,
-      "line": 62,
-      "scene_label": "[SCENE 3]",
+      "line": 63,
+      "scene_label": null,
       "type": "animation",
-      "call": "self.play(Write(eq_B))",
+      "call": "self.play(FadeOut(c2_text), FadeOut(m_prop), FadeOut(rect))",
       "run_time": null,
       "duration": 1.0
     },
     {
       "index": 25,
-      "line": 63,
-      "scene_label": "[SCENE 3]",
-      "type": "wait",
-      "call": "self.wait(1)",
+      "line": 67,
+      "scene_label": null,
+      "type": "animation",
+      "call": "self.play(Write(final_text))",
       "run_time": null,
       "duration": 1.0
     },
     {
       "index": 26,
-      "line": 64,
-      "scene_label": "[SCENE 3]",
-      "type": "animation",
-      "call": "self.play(eq_B.animate.to_edge(UP, buff=1.5))",
+      "line": 68,
+      "scene_label": null,
+      "type": "wait",
+      "call": "self.wait(3)",
       "run_time": null,
-      "duration": 1.0
+      "duration": 3.0
     },
     {
       "index": 27,
-      "line": 65,
-      "scene_label": "[SCENE 3]",
-      "type": "wait",
-      "call": "self.wait(1)",
-      "run_time": null,
-      "duration": 1.0
-    },
-    {
-      "index": 28,
-      "line": 67,
-      "scene_label": "[SCENE 3]",
+      "line": 69,
+      "scene_label": null,
       "type": "animation",
-      "call": "self.play(eq_B[1].animate.set_color(RED))",
+      "call": "self.play(FadeOut(final_text))",
       "run_time": null,
       "duration": 1.0
-    },
-    {
-      "index": 29,
-      "line": 74,
-      "scene_label": "[SCENE 3]",
-      "type": "animation",
-      "call": "self.play(FadeIn(exp_N_star))",
-      "run_time": null,
-      "duration": 1.0
-    },
-    {
-      "index": 30,
-      "line": 75,
-      "scene_label": "[SCENE 3]",
-      "type": "wait",
-      "call": "self.wait(1)",
-      "run_time": null,
-      "duration": 1.0
-    },
-    {
-      "index": 31,
-      "line": 77,
-      "scene_label": "[SCENE 3]",
-      "type": "animation",
-      "call": "self.play(eq_B[3].animate.set_color(GREEN))",
-      "run_time": null,
-      "duration": 1.0
-    },
-    {
-      "index": 32,
-      "line": 80,
-      "scene_label": "[SCENE 3]",
-      "type": "animation",
-      "call": "self.play(FadeIn(cond_B, shift=UP))",
-      "run_time": null,
-      "duration": 1.0
-    },
-    {
-      "index": 33,
-      "line": 81,
-      "scene_label": "[SCENE 3]",
-      "type": "wait",
-      "call": "self.wait(1)",
-      "run_time": null,
-      "duration": 1.0
-    },
-    {
-      "index": 34,
-      "line": 86,
-      "scene_label": "[SCENE 4]",
-      "type": "animation",
-      "call": "self.play(Create(nums_B[i]), run_time=0.4)",
-      "run_time": 0.4,
-      "duration": 0.4
-    },
-    {
-      "index": 35,
-      "line": 88,
-      "scene_label": "[SCENE 4]",
-      "type": "animation",
-      "call": "self.play(Write(nums_B[i + 1]), run_time=0.2)",
-      "run_time": 0.2,
-      "duration": 0.2
-    },
-    {
-      "index": 36,
-      "line": 89,
-      "scene_label": "[SCENE 3]",
-      "type": "wait",
-      "call": "self.wait(1)",
-      "run_time": null,
-      "duration": 1.0
-    },
-    {
-      "index": 37,
-      "line": 94,
-      "scene_label": "[SCENE 3]",
-      "type": "animation",
-      "call": "self.play(ReplacementTransform(nums_B, res_B))",
-      "run_time": null,
-      "duration": 1.0
-    },
-    {
-      "index": 38,
-      "line": 95,
-      "scene_label": "[SCENE 3]",
-      "type": "animation",
-      "call": "self.play(Create(box_B))",
-      "run_time": null,
-      "duration": 1.0
-    },
-    {
-      "index": 39,
-      "line": 96,
-      "scene_label": "[SCENE 3]",
-      "type": "wait",
-      "call": "self.wait(4)",
-      "run_time": null,
-      "duration": 4.0
-    },
-    {
-      "index": 40,
-      "line": 99,
-      "scene_label": "[SCENE 4]",
-      "type": "animation",
-      "call": "self.play(FadeOut(eq_B), FadeOut(exp_N_star), FadeOut(cond_B))",
-      "run_time": null,
-      "duration": 1.0
-    },
-    {
-      "index": 41,
-      "line": 100,
-      "scene_label": "[SCENE 4]",
-      "type": "wait",
-      "call": "self.wait(1)",
-      "run_time": null,
-      "duration": 1.0
-    },
-    {
-      "index": 42,
-      "line": 103,
-      "scene_label": "[SCENE 4]",
-      "type": "animation",
-      "call": "self.play(group_B.animate.move_to(DOWN * 1.5))",
-      "run_time": null,
-      "duration": 1.0
-    },
-    {
-      "index": 43,
-      "line": 104,
-      "scene_label": "[SCENE 4]",
-      "type": "wait",
-      "call": "self.wait(1)",
-      "run_time": null,
-      "duration": 1.0
-    },
-    {
-      "index": 44,
-      "line": 108,
-      "scene_label": "[SCENE 4]",
-      "type": "animation",
-      "call": "self.play(FadeIn(group_A))",
-      "run_time": null,
-      "duration": 1.0
-    },
-    {
-      "index": 45,
-      "line": 109,
-      "scene_label": "[SCENE 4]",
-      "type": "wait",
-      "call": "self.wait(1)",
-      "run_time": null,
-      "duration": 1.0
-    },
-    {
-      "index": 46,
-      "line": 113,
-      "scene_label": "[SCENE 4]",
-      "type": "animation",
-      "call": "self.play(FadeIn(label_A), FadeIn(label_B))",
-      "run_time": null,
-      "duration": 1.0
-    },
-    {
-      "index": 47,
-      "line": 114,
-      "scene_label": "[SCENE 4]",
-      "type": "wait",
-      "call": "self.wait(1)",
-      "run_time": null,
-      "duration": 1.0
-    },
-    {
-      "index": 48,
-      "line": 117,
-      "scene_label": "[SCENE 4]",
-      "type": "animation",
-      "call": "self.play(Create(circle_0))",
-      "run_time": null,
-      "duration": 1.0
-    },
-    {
-      "index": 49,
-      "line": 118,
-      "scene_label": "[SCENE 4]",
-      "type": "wait",
-      "call": "self.wait(1)",
-      "run_time": null,
-      "duration": 1.0
-    },
-    {
-      "index": 50,
-      "line": 120,
-      "scene_label": "[SCENE 4]",
-      "type": "animation",
-      "call": "self.play(res_A[3].animate.set_opacity(0), run_time=0.2)",
-      "run_time": 0.2,
-      "duration": 0.2
-    },
-    {
-      "index": 51,
-      "line": 121,
-      "scene_label": "[SCENE 4]",
-      "type": "animation",
-      "call": "self.play(res_A[3].animate.set_opacity(1), run_time=0.2)",
-      "run_time": 0.2,
-      "duration": 0.2
-    },
-    {
-      "index": 52,
-      "line": 122,
-      "scene_label": "[SCENE 4]",
-      "type": "animation",
-      "call": "self.play(res_A[3].animate.set_opacity(0), run_time=0.2)",
-      "run_time": 0.2,
-      "duration": 0.2
-    },
-    {
-      "index": 53,
-      "line": 123,
-      "scene_label": "[SCENE 4]",
-      "type": "animation",
-      "call": "self.play(res_A[3].animate.set_opacity(1), run_time=0.2)",
-      "run_time": 0.2,
-      "duration": 0.2
-    },
-    {
-      "index": 54,
-      "line": 125,
-      "scene_label": "[SCENE 4]",
-      "type": "wait",
-      "call": "self.wait(5)",
-      "run_time": null,
-      "duration": 5.0
     }
   ],
   "tts_blocks": [
     {
       "scene_label": null,
       "start_time": 0.0,
-      "end_time": 8.0,
-      "duration": 8.0,
+      "end_time": 41.0,
+      "duration": 41.0,
       "segment_indices": [
         1,
         2,
         3,
         4,
         5,
-        6
-      ]
-    },
-    {
-      "scene_label": "[SCENE 2]",
-      "start_time": 8.0,
-      "end_time": 17.0,
-      "duration": 9.0,
-      "segment_indices": [
+        6,
         7,
         8,
         9,
@@ -519,94 +268,19 @@
         12,
         13,
         14,
-        15
-      ]
-    },
-    {
-      "scene_label": "[SCENE 4]",
-      "start_time": 17.0,
-      "end_time": 17.6,
-      "duration": 0.6,
-      "segment_indices": [
+        15,
         16,
-        17
-      ]
-    },
-    {
-      "scene_label": "[SCENE 2]",
-      "start_time": 17.6,
-      "end_time": 24.6,
-      "duration": 7.0,
-      "segment_indices": [
+        17,
         18,
         19,
         20,
-        21
-      ]
-    },
-    {
-      "scene_label": "[SCENE 3]",
-      "start_time": 24.6,
-      "end_time": 36.6,
-      "duration": 12.0,
-      "segment_indices": [
+        21,
         22,
         23,
         24,
         25,
         26,
-        27,
-        28,
-        29,
-        30,
-        31,
-        32,
-        33
-      ]
-    },
-    {
-      "scene_label": "[SCENE 4]",
-      "start_time": 36.6,
-      "end_time": 37.2,
-      "duration": 0.6,
-      "segment_indices": [
-        34,
-        35
-      ]
-    },
-    {
-      "scene_label": "[SCENE 3]",
-      "start_time": 37.2,
-      "end_time": 44.2,
-      "duration": 7.0,
-      "segment_indices": [
-        36,
-        37,
-        38,
-        39
-      ]
-    },
-    {
-      "scene_label": "[SCENE 4]",
-      "start_time": 44.2,
-      "end_time": 60.0,
-      "duration": 15.8,
-      "segment_indices": [
-        40,
-        41,
-        42,
-        43,
-        44,
-        45,
-        46,
-        47,
-        48,
-        49,
-        50,
-        51,
-        52,
-        53,
-        54
+        27
       ]
     }
   ]
