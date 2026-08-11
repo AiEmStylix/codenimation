@@ -30,6 +30,7 @@ import json
 import argparse
 import re
 import textwrap
+import unicodedata
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -41,10 +42,11 @@ RESULTS_ROOT = Path(__file__).parent / "results"
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 
 def _slugify(text: str, max_len: int = 40) -> str:
-    """Chuyển chuỗi tuỳ ý thành slug an toàn cho tên thư mục."""
+    """Chuyển chuỗi tuỳ ý thành slug ASCII an toàn cho tên thư mục."""
+    text = unicodedata.normalize("NFKD", text)
+    text = text.encode("ascii", "ignore").decode("ascii")
     text = text.strip().lower()
-    # Giữ lại chữ cái (kể cả Unicode tiếng Việt), số, khoảng trắng, dấu gạch ngang
-    text = re.sub(r"[^\w\s-]", "", text, flags=re.UNICODE)
+    text = re.sub(r"[^\w\s-]", "", text)
     text = re.sub(r"[\s_]+", "_", text)
     text = text[:max_len].strip("_")
     return text or "session"
@@ -52,7 +54,7 @@ def _slugify(text: str, max_len: int = 40) -> str:
 
 def _make_session_id(topic: str) -> str:
     """Tạo session ID theo dạng: YYYYMMDD_HHMMSS_<slug>."""
-    ts = datetime.now().strftime("%Y%m%d_%H%M%SS")  # giây + mili giây tránh trùng
+    ts = datetime.now().strftime("%Y%M%D_%H%M%S")  # giây + mili giây tránh trùng
     slug = _slugify(topic)
     return f"{ts}_{slug}"
 

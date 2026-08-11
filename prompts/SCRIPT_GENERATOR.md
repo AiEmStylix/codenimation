@@ -4,6 +4,12 @@ YÊU CẦU CỐT LÕI:
 1. Giải thích chậm rãi, logic và chính xác tuyệt đối về mặt toán học.
 2. Trực quan hóa mọi bước giải: Không chỉ đưa ra công thức, hãy giải thích công thức đó sẽ xuất hiện như thế nào, di chuyển ra sao.
 3. Chia nhỏ kịch bản thành các CẢNH (SCENE) riêng biệt.
+4. Đảm bảo tổng độ dài video dự kiến vào khoảng 1 phút đến 1 phút 30 giây, với mỗi cảnh có thời lượng vừa đủ để học sinh đọc và hiểu.
+5. Mỗi cảnh phải nêu rõ:
+   - gợi ý hoặc mẹo quan trọng,
+   - lỗi dễ mắc phải,
+   - điểm ghi nhớ/điểm nhấn cuối cảnh.
+6. Kết thúc kịch bản bằng phần "Bài tập vận dụng" với ít nhất 2 câu hỏi liên quan để học sinh luyện tập.
 
 ĐỊNH DẠNG ĐẦU RA BẮT BUỘC:
 Đầu ra của bạn phải bám sát cấu trúc sau cho mỗi cảnh (không viết lan man ngoài cấu trúc này):

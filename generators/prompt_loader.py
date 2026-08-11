@@ -1,12 +1,16 @@
 import os
+from pathlib import Path
 import streamlit as st
+
+PROMPT_DIR = Path(__file__).resolve().parent.parent / "prompts"
 
 
 def load_prompt_from_file(filename: str) -> str:
-    """Đọc nội dung từ file Markdown."""
-    if not os.path.exists(filename):
-        st.error(f"❌ Không tìm thấy file `{filename}`. Vui lòng tạo file này cùng thư mục với `app.py`.")
+    """Đọc nội dung từ file Markdown trong thư mục prompts."""
+    prompt_path = PROMPT_DIR / filename
+    if not prompt_path.exists():
+        st.error(f"❌ Không tìm thấy file `{prompt_path}`. Vui lòng tạo file này trong thư mục `prompts/`.")
         st.stop()
     
-    with open(filename, "r", encoding="utf-8") as f:
+    with open(prompt_path, "r", encoding="utf-8") as f:
         return f.read()
