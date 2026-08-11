@@ -6,9 +6,10 @@ readme = "README.md"
 requires-python = ">=3.11,<3.14"
 dependencies = [
     "google-genai>=2.12.1",
+    "langfuse>=4.14.3",
     "manim>=0.20.1",
     "openai>=2.46.0",
     "python-dotenv>=1.2.2",
     "streamlit>=1.59.2",
-    "vieneu==3.2.3"
+    "vieneu==3.2.3",
 ]
