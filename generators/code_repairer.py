@@ -1,6 +1,8 @@
+import html
 import re
 from typing import Any
 from .prompt_utils import run_llm_text
+from .code_generator import _fix_latex_backslashes
 
 
 def _strip_code_blocks(text: str) -> str:
@@ -30,4 +32,8 @@ def repair_manim_code(code_text: str, error_info: dict[str, Any], raw_error: str
         f"{code_text}\n\n"
         "Hãy sửa lại mã bằng cách sửa đúng chỗ lỗi và chỉ sửa những phần cần thiết. Trả về nguyên mã Python hoàn chỉnh, KHÔNG bọc trong markdown code block, KHÔNG thêm giải thích.")
     repaired = run_llm_text(client, "CODE_REPAIR.md", user_content, temperature=0.2)
-    return _strip_code_blocks(repaired)
+    repaired = _strip_code_blocks(repaired)
+    # LLM có thể chép HTML entity / backslash bị nhân đôi từ prompt lỗi vào code — làm sạch.
+    repaired = html.unescape(repaired)
+    repaired = _fix_latex_backslashes(repaired)
+    return repaired

@@ -1,7 +1,11 @@
 from __future__ import annotations
 
-import audioop
+import math
+import shutil
+import subprocess
+import tempfile
 import re
+import html
 import wave
 from pathlib import Path
 from typing import Any
@@ -15,6 +19,7 @@ DEFAULT_VOICE = "Trúc Ly"
 DEFAULT_SAMPLE_RATE = 22050
 DEFAULT_CHANNELS = 1
 DEFAULT_SAMPWIDTH = 2
+MAX_TTS_CHARS = 220
 
 
 class VieneuTTS:
@@ -61,12 +66,26 @@ class VieneuTTS:
                 infer_kwargs["temperature"] = float(temperature)
             if silence_p is not None:
                 infer_kwargs["silence_p"] = float(silence_p)
-            # forward speed/pitch as hints if backend supports them
-            infer_kwargs["speed"] = float(speed)
-            infer_kwargs["pitch"] = float(pitch)
 
-            audio = engine.infer(text, voice=voice_name, **infer_kwargs)
-            engine.save(audio, str(output_path))
+            chunks = _split_text_for_tts(text, max_chars=MAX_TTS_CHARS)
+            with tempfile.TemporaryDirectory() as tmp_dir_name:
+                tmp_dir = Path(tmp_dir_name)
+                chunk_files: list[Path] = []
+                for chunk_index, chunk_text in enumerate(chunks, start=1):
+                    chunk_path = tmp_dir / f"chunk_{chunk_index}.wav"
+                    audio = engine.infer(chunk_text, voice=voice_name, **infer_kwargs)
+                    engine.save(audio, str(chunk_path))
+                    if speed != 1.0:
+                        chunk_path = _apply_playback_speed(chunk_path, speed)
+                    if pitch != 0.0:
+                        chunk_path = _apply_pitch_shift(chunk_path, pitch)
+                    chunk_files.append(chunk_path)
+
+                if len(chunk_files) == 1:
+                    shutil.copyfile(chunk_files[0], output_path)
+                else:
+                    _concat_wav_files(chunk_files, output_path)
+
             return {
                 "status": "ok",
                 "output_file": str(output_path),
@@ -100,13 +119,18 @@ class VieneuTTS:
             wf.writeframes(b"\x00" * int(DEFAULT_SAMPLE_RATE * 0.2 * DEFAULT_CHANNELS * DEFAULT_SAMPWIDTH))
 
 
+def _normalize_numeric_string(value: str) -> str:
+    return value.replace(",", ".")
+
+
 def _parse_float(value: Any, default: float = 1.0) -> float:
     if isinstance(value, (int, float)):
         return float(value)
     if isinstance(value, str):
-        match = re.search(r"[-+]?\d+(?:\.\d+)?", value)
-        if match:
-            return float(match.group(0))
+        normalized = _normalize_numeric_string(value)
+        matches = re.findall(r"[-+]?\d+(?:\.\d+)?", normalized)
+        if matches:
+            return float(matches[0])
     return default
 
 
@@ -114,9 +138,10 @@ def _parse_pause(value: Any, default: float = 0.0) -> float:
     if isinstance(value, (int, float)):
         return float(value)
     if isinstance(value, str):
-        match = re.search(r"\d+(?:\.\d+)?", value)
-        if match:
-            return float(match.group(0))
+        normalized = _normalize_numeric_string(value)
+        matches = re.findall(r"\d+(?:\.\d+)?", normalized)
+        if matches:
+            return float(matches[0])
     return default
 
 
@@ -124,9 +149,10 @@ def _parse_duration(value: Any, default: float = 0.0) -> float:
     if isinstance(value, (int, float)):
         return float(value)
     if isinstance(value, str):
-        match = re.search(r"\d+(?:\.\d+)?", value)
-        if match:
-            return float(match.group(0))
+        normalized = _normalize_numeric_string(value)
+        matches = re.findall(r"\d+(?:\.\d+)?", normalized)
+        if matches:
+            return float(matches[0])
     return default
 
 
@@ -139,50 +165,144 @@ def _estimate_text_duration_seconds(text: str) -> float:
     return max(0.4, words * 0.35 + chars * 0.01)
 
 
-def _db_to_linear(db: float) -> float:
-    """Convert dB to linear amplitude factor relative to full scale (1.0)."""
-    return 10 ** (db / 20.0)
+def _split_text_for_tts(text: str, max_chars: int = MAX_TTS_CHARS) -> list[str]:
+    text = text.strip()
+    if len(text) <= max_chars:
+        return [text]
+
+    sentences = re.split(r"(?<=[.!?。！？])\s+", text)
+    chunks: list[str] = []
+    current = ""
+
+    def flush_current() -> None:
+        nonlocal current
+        if current.strip():
+            chunks.append(current.strip())
+        current = ""
+
+    for sentence in sentences:
+        sentence = sentence.strip()
+        if not sentence:
+            continue
+        if len(sentence) > max_chars:
+            flush_current()
+            words = sentence.split()
+            nested = ""
+            for word in words:
+                candidate = f"{nested} {word}".strip()
+                if len(candidate) <= max_chars:
+                    nested = candidate
+                else:
+                    if nested:
+                        chunks.append(nested)
+                    nested = word
+            if nested:
+                chunks.append(nested)
+            continue
+
+        candidate = f"{current} {sentence}".strip() if current else sentence
+        if len(candidate) <= max_chars:
+            current = candidate
+        else:
+            flush_current()
+            current = sentence
+
+    flush_current()
+    return chunks or [text]
 
 
-def _normalize_wav(audio_path: Path, target_db: float = -18.0) -> None:
-    """Normalize WAV file RMS to target dBFS (approximate, destructive edit)."""
-    with wave.open(str(audio_path), "rb") as wf:
-        params = wf.getparams()
-        nch = params.nchannels
-        sampw = params.sampwidth
-        fr = params.framerate
-        frames = wf.readframes(wf.getnframes())
+def _build_atempo_filter(speed: float) -> str:
+    if speed <= 0:
+        raise ValueError("speed phải lớn hơn 0")
 
-    # compute current RMS
+    remaining = speed
+    pieces: list[str] = []
+    while remaining > 2.0:
+        pieces.append("2.0")
+        remaining /= 2.0
+    while remaining < 0.5:
+        pieces.append("0.5")
+        remaining /= 0.5
+    if not math.isclose(remaining, 1.0):
+        pieces.append(f"{remaining:.6f}".rstrip("0").rstrip("."))
+    return ",".join(f"atempo={piece}" for piece in pieces)
+
+
+def _apply_playback_speed(audio_path: Path, speed: float) -> Path:
+    if math.isclose(speed, 1.0):
+        return audio_path
+
+    filtered_path = audio_path.with_name(f"{audio_path.stem}_speed{audio_path.suffix}")
+    filter_chain = _build_atempo_filter(speed)
+    command = [
+        "ffmpeg",
+        "-y",
+        "-i",
+        str(audio_path),
+        "-filter:a",
+        filter_chain,
+        "-vn",
+        str(filtered_path),
+    ]
+    subprocess.run(command, check=True, capture_output=True, text=True)
+    return filtered_path
+
+
+def _apply_pitch_shift(audio_path: Path, pitch: float) -> Path:
+    if math.isclose(pitch, 0.0):
+        return audio_path
+
+    _, _, sample_rate = _get_wav_params(audio_path)
+    pitch_factor = 2 ** (pitch / 12.0)
+    filtered_path = audio_path.with_name(f"{audio_path.stem}_pitch{audio_path.suffix}")
+    filter_chain = f"asetrate={sample_rate * pitch_factor},{_build_atempo_filter(1.0 / pitch_factor)}"
+    command = [
+        "ffmpeg",
+        "-y",
+        "-i",
+        str(audio_path),
+        "-filter:a",
+        filter_chain,
+        "-ar",
+        str(sample_rate),
+        str(filtered_path),
+    ]
+    subprocess.run(command, check=True, capture_output=True, text=True)
+    return filtered_path
+
+
+def _concat_wav_files(input_files: list[Path], output_path: str | Path) -> None:
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    if not input_files:
+        _write_silence_wav(output_path, 0.2)
+        return
+
+    with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False, encoding="utf-8") as handle:
+        list_path = Path(handle.name)
+        for file_path in input_files:
+            handle.write(f"file '{file_path.as_posix()}'\n")
+
     try:
-        cur_rms = audioop.rms(frames, sampw)
-    except Exception:
-        return
-
-    if cur_rms == 0:
-        return
-
-    # max amplitude for sampwidth
-    max_amp = float(2 ** (8 * sampw - 1) - 1)
-    target_linear = max_amp * _db_to_linear(target_db)
-    scale = float(target_linear) / float(cur_rms)
-    # avoid extreme gain
-    if scale <= 0:
-        return
-    if scale > 10:
-        scale = 10.0
-
-    try:
-        new_frames = audioop.mul(frames, sampw, scale)
-    except Exception:
-        return
-
-    # write back
-    with wave.open(str(audio_path), "wb") as wf:
-        wf.setnchannels(nch)
-        wf.setsampwidth(sampw)
-        wf.setframerate(fr)
-        wf.writeframes(new_frames)
+        command = [
+            "ffmpeg",
+            "-y",
+            "-f",
+            "concat",
+            "-safe",
+            "0",
+            "-i",
+            str(list_path),
+            "-c",
+            "copy",
+            str(output_path),
+        ]
+        subprocess.run(command, check=True, capture_output=True, text=True)
+    finally:
+        try:
+            list_path.unlink(missing_ok=True)
+        except Exception:
+            pass
 
 
 def build_tts_segments_from_voiceover(voiceover_payload: dict[str, Any], default_voice: str = DEFAULT_VOICE) -> list[dict[str, Any]]:
@@ -191,12 +311,14 @@ def build_tts_segments_from_voiceover(voiceover_payload: dict[str, Any], default
     segments: list[dict[str, Any]] = []
 
     for index, item in enumerate(items, start=1):
-        text = str(item.get("script", "")).strip()
+        text = html.unescape(str(item.get("script", ""))).strip()
         if not text:
             continue
 
         pause_timing = str(item.get("pause_timing", "0"))
-        pause_value = _parse_pause(pause_timing, default=0.3)
+        pause_value = _parse_pause(pause_timing, default=0.15)
+        # Giữ pause ngắn để lời giảng liền mạch (không quá 0.5s giữa các câu/cảnh).
+        pause_value = max(0.0, min(0.5, pause_value))
         hold_duration = _parse_duration(item.get("hold_duration", 0.0), default=0.0)
 
         speed = _parse_float(item.get("reading_speed"), default=1.0)
@@ -206,23 +328,16 @@ def build_tts_segments_from_voiceover(voiceover_payload: dict[str, Any], default
         elif speed > 1.2:
             speed = 1.15
 
-        # apply light punctuation around stress words to encourage TTS emphasis
-        stress_raw = item.get("stress_words", "") or ""
-        if stress_raw:
-            try:
-                stress_list = [s.strip() for s in re.split(r"[,;]", stress_raw) if s.strip()]
-                for w in stress_list:
-                    if not w:
-                        continue
-                    # surround the word with commas to induce a natural pause
-                    text = re.sub(rf"\b({re.escape(w)})\b", r", \1,", text, flags=re.IGNORECASE)
-            except Exception:
-                pass
+        scene_id = item.get("scene_id") or ""
+        scene_name = item.get("scene_name") or _derive_scene_name_from_id(scene_id) or f"scene_{index}"
+        scene_label = item.get("scene_label") or _scene_label_from_id(scene_id, scene_name, index)
 
         segments.append(
             {
                 "index": index,
-                "scene_name": item.get("scene_name", f"scene_{index}"),
+                "scene_id": scene_id or scene_name,
+                "scene_label": scene_label,
+                "scene_name": scene_name,
                 "text": text,
                 "voice": item.get("voice") or default_voice,
                 "speed": speed,
@@ -241,6 +356,51 @@ def build_tts_segments_from_voiceover(voiceover_payload: dict[str, Any], default
     return segments
 
 
+def _scene_label_from_id(scene_id: str, scene_name: str, index: int) -> str:
+    """Suy ra nhãn cảnh dạng [SCENE N] từ scene_id / scene_name / thứ tự."""
+    for value in (scene_id, scene_name):
+        m = re.search(r"\[SCENE\s*(\d+)\]", value or "", re.IGNORECASE)
+        if m:
+            return f"[SCENE {int(m.group(1))}]"
+    for value in (scene_id, scene_name):
+        m = re.search(r"scene[_-]?(\d+)", value or "", re.IGNORECASE)
+        if m:
+            return f"[SCENE {int(m.group(1))}]"
+    return f"[SCENE {index}]"
+
+
+def _derive_scene_name_from_id(scene_id: str) -> str:
+    """Suy ra tên cảnh đọc được từ scene_id khi LLM quên cung cấp scene_name.
+
+    vd "scene_4_mau_a" -> "Scene 4 mau a". Đủ dùng cho phụ đề/manifest khi thiếu.
+    """
+    scene_id = (scene_id or "").strip()
+    if not scene_id:
+        return ""
+    cleaned = re.sub(r"[_-]+", " ", scene_id)
+    return cleaned.strip().title()
+
+
+def _build_scene_start_lookup(scene_timings: dict[str, Any] | None) -> dict[str, float]:
+    """Map từ nhãn cảnh chuẩn hoá -> thời điểm bắt đầu (giây) theo timeline animation."""
+    lookup: dict[str, float] = {}
+    if not scene_timings:
+        return lookup
+
+    blocks = scene_timings.get("tts_blocks") or []
+    for block in blocks:
+        label = str(block.get("scene_label") or "").strip().lower()
+        start = block.get("start_time")
+        if label and isinstance(start, (int, float)):
+            lookup[label] = float(start)
+    return lookup
+
+
+def _resolve_scene_start(segment: dict[str, Any], scene_starts: dict[str, float]) -> float | None:
+    label = str(segment.get("scene_label") or "").strip().lower()
+    return scene_starts.get(label)
+
+
 def _get_wav_duration(audio_path: Path) -> float:
     with wave.open(str(audio_path), "rb") as wf:
         return wf.getnframes() / wf.getframerate()
@@ -251,69 +411,36 @@ def _get_wav_params(audio_path: Path) -> tuple[int, int, int]:
         return wf.getnchannels(), wf.getsampwidth(), wf.getframerate()
 
 
-def _resample_frames(frames: bytes, sampwidth: int, in_rate: int, out_rate: int, nchannels: int) -> bytes:
-    if in_rate == out_rate:
-        return frames
-    converted, _ = audioop.ratecv(frames, sampwidth, nchannels, in_rate, out_rate, None)
-    return converted
-
-
-def _ensure_matching_params(frames: bytes, source_params: tuple[int, int, int], target_params: tuple[int, int, int]) -> bytes:
-    src_nch, src_sampw, src_rate = source_params
-    tgt_nch, tgt_sampw, tgt_rate = target_params
-
-    if src_nch != tgt_nch:
-        if src_nch == 2 and tgt_nch == 1:
-            frames = audioop.tomono(frames, src_sampw, 0.5, 0.5)
-        elif src_nch == 1 and tgt_nch == 2:
-            frames = audioop.tostereo(frames, src_sampw, 1.0, 1.0)
-        else:
-            raise RuntimeError(f"Không hỗ trợ chuyển đổi {src_nch} → {tgt_nch} channels")
-        src_nch = tgt_nch
-
-    if src_rate != tgt_rate:
-        frames = _resample_frames(frames, src_sampw, src_rate, tgt_rate, src_nch)
-        src_rate = tgt_rate
-
-    if src_sampw != tgt_sampw:
-        raise RuntimeError("Không hỗ trợ chuyển đổi sampwidth khác nhau")
-
-    return frames
-
-
 def synthesize_voiceover_segments(
     voiceover_payload: dict[str, Any],
     output_dir: str | Path,
     default_voice: str = DEFAULT_VOICE,
     target_duration: float | None = None,
+    scene_timings: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Sinh audio cho từng đoạn và tạo file tổng hợp cùng manifest JSON, căn theo thời lượng mục tiêu nếu có."""
+    """Sinh audio cho từng đoạn và tạo file tổng hợp cùng manifest JSON, căn theo thời lượng mục tiêu nếu có.
+
+    scene_timings: dict có key "tts_blocks" (từ extract_animation_timings). Mỗi block có
+    scene_label + start_time. Dùng để căn lề từng đoạn narration vào đúng thời điểm cảnh
+    xuất hiện (audio-first: không để lời giảng trôi lệch khỏi animation).
+    """
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
     segments = build_tts_segments_from_voiceover(voiceover_payload, default_voice=default_voice)
     engine = VieneuTTS(voice=default_voice)
 
+    scene_starts = _build_scene_start_lookup(scene_timings)
+
     manifest_segments: list[dict[str, Any]] = []
     input_files: list[Path] = []
-
-    if target_duration is not None and target_duration > 0 and segments:
-        estimated_total_duration = sum(
-            _estimate_text_duration_seconds(str(segment["text"]))
-            + float(segment.get("pause_before", 0))
-            + float(segment.get("pause_after", 0))
-            for segment in segments
-        )
-        duration_scale = estimated_total_duration / target_duration if estimated_total_duration > 0 else 1.0
-    else:
-        duration_scale = 1.0
 
     current_time = 0.0
     for segment in segments:
         safe_name = re.sub(r"[^a-zA-Z0-9]+", "_", segment["scene_name"]).strip("_") or f"segment_{segment['index']}"
         audio_path = output_dir / f"{safe_name}_{segment['index']}.wav"
 
-        effective_speed = segment["speed"] * duration_scale
+        effective_speed = segment["speed"]
 
         # map emotion to style hint (best-effort)
         emotion = (segment.get("emotion") or "").lower()
@@ -338,18 +465,29 @@ def synthesize_voiceover_segments(
             style=style_hint,
             temperature=temperature,
             silence_p=silence_p,
-            pause_before=segment["pause_before"],
-            pause_after=segment["pause_after"],
+            pause_before=0.0,
+            pause_after=0.0,
         )
 
         voice_sample_rate = DEFAULT_SAMPLE_RATE
         if audio_path.exists():
             _, _, voice_sample_rate = _get_wav_params(audio_path)
 
-        if segment["pause_before"] > 0:
+        # Căn lề narration vào thời điểm cảnh bắt đầu (audio-first). Pause tự nhiên
+        # và khoảng cách để khớp scene đều do silence WAV bên ngoài quản lý, không
+        # nhúng trong engine → tránh đếm pause 2 lần và audio trôi lệch.
+        target_start = _resolve_scene_start(segment, scene_starts)
+        lead_in = 0.0
+        if target_start is not None and current_time < target_start:
+            lead_in = target_start - current_time
+        elif lead_in <= 0:
+            lead_in = float(segment["pause_before"])
+
+        if lead_in > 0:
             pause_before_path = output_dir / f"{safe_name}_{segment['index']}_pause_before.wav"
-            _write_silence_wav(pause_before_path, segment["pause_before"], sample_rate=voice_sample_rate)
+            _write_silence_wav(pause_before_path, lead_in, sample_rate=voice_sample_rate)
             input_files.append(pause_before_path)
+        pause_before_used = lead_in
 
         input_files.append(Path(result["output_file"]))
 
@@ -366,7 +504,7 @@ def synthesize_voiceover_segments(
             _write_silence_wav(pause_after_path, segment_silence_after, sample_rate=voice_sample_rate)
             input_files.append(pause_after_path)
 
-        segment_total_duration = audio_duration + float(segment["pause_before"]) + segment_silence_after
+        segment_total_duration = audio_duration + pause_before_used + segment_silence_after
         segment_start = current_time
         segment_end = current_time + segment_total_duration
         current_time = segment_end
@@ -374,12 +512,14 @@ def synthesize_voiceover_segments(
         manifest_segments.append(
             {
                 "index": segment["index"],
+                "scene_id": segment["scene_id"],
+                "scene_label": segment["scene_label"],
                 "scene_name": segment["scene_name"],
                 "text": segment["text"],
                 "voice": segment["voice"],
                 "speed": effective_speed,
                 "pitch": segment["pitch"],
-                "pause_before": segment["pause_before"],
+                "pause_before": round(pause_before_used, 4),
                 "pause_after": segment_silence_after,
                 "hold_duration": segment.get("hold_duration", 0.0),
                 "animation_instruction": segment.get("animation_instruction", ""),
@@ -398,12 +538,6 @@ def synthesize_voiceover_segments(
 
     combined_path = output_dir / "combined_audio.wav"
     _combine_wav_files(input_files, combined_path)
-
-    # Normalize loudness to ensure consistent perceived volume
-    try:
-        _normalize_wav(combined_path, target_db=-18.0)
-    except Exception:
-        pass
 
     if target_duration is not None:
         _trim_or_pad_audio(combined_path, target_duration)
@@ -432,34 +566,12 @@ def _combine_wav_files(input_files: list[Path], output_path: str | Path) -> None
         _write_silence_wav(output_path, 0.2)
         return
 
-    frames: list[bytes] = []
-    params = None
-
-    for path in input_files:
-        if not path.exists():
-            continue
-        with wave.open(str(path), "rb") as wf:
-            src_params = wf.getparams()
-            data = wf.readframes(wf.getnframes())
-            if params is None:
-                params = src_params
-                frames.append(data)
-                continue
-
-            target_params = (params.nchannels, params.sampwidth, params.framerate)
-            source_params = (src_params.nchannels, src_params.sampwidth, src_params.framerate)
-            if source_params != target_params:
-                data = _ensure_matching_params(data, source_params, target_params)
-            frames.append(data)
-
-    if not frames:
+    existing = [path for path in input_files if path.exists()]
+    if not existing:
         _write_silence_wav(output_path, 0.2)
         return
 
-    with wave.open(str(output_path), "wb") as wf:
-        wf.setparams(params)
-        for chunk in frames:
-            wf.writeframes(chunk)
+    _concat_wav_files(existing, output_path)
 
 
 def _trim_or_pad_audio(audio_path: str | Path, target_duration: float) -> None:
@@ -476,14 +588,7 @@ def _trim_or_pad_audio(audio_path: str | Path, target_duration: float) -> None:
     if current_duration <= 0:
         return
 
-    if current_duration > target_duration:
-        target_frames = int(target_duration * frame_rate)
-        with wave.open(str(audio_path), "rb") as wf:
-            frames = wf.readframes(target_frames)
-        with wave.open(str(audio_path), "wb") as wf:
-            wf.setparams(params)
-            wf.writeframes(frames)
-    elif current_duration < target_duration:
+    if current_duration < target_duration:
         pad_frames = int((target_duration - current_duration) * frame_rate)
         if pad_frames > 0:
             with wave.open(str(audio_path), "rb") as wf:
@@ -491,4 +596,4 @@ def _trim_or_pad_audio(audio_path: str | Path, target_duration: float) -> None:
             with wave.open(str(audio_path), "wb") as wf:
                 wf.setparams(params)
                 wf.writeframes(existing_frames)
-                wf.writeframes(b"\x00" * pad_frames * DEFAULT_CHANNELS * DEFAULT_SAMPWIDTH)
+                wf.writeframes(b"\x00" * pad_frames * params.nchannels * params.sampwidth)

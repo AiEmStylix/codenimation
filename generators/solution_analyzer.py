@@ -15,3 +15,14 @@ def analyze_solution(solution_text: str | None, problem: str, client) -> dict:
             f"Đề bài:\n{problem}"
         )
     return run_llm_json(client, "SOLUTION_ANALYSIS.md", user_input)
+
+
+def verify_solution(solution_text: str, problem: str, client) -> dict:
+    user_input = (
+        "Hãy kiểm tra độc lập tính đúng sai của lời giải sau so với đề bài. "
+        "Nếu có bước sai, thiếu điều kiện, nhảy bước, hoặc kết luận mâu thuẫn, hãy đánh dấu is_correct = false.\n\n"
+        f"Đề bài:\n{problem}\n\n"
+        f"Lời giải cần kiểm tra:\n{solution_text}\n\n"
+        "Trả về JSON đúng schema trong prompt."
+    )
+    return run_llm_json(client, "SOLUTION_VERIFICATION.md", user_input)

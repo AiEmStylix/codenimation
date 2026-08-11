@@ -82,34 +82,71 @@ def _find_construct(class_def: ast.ClassDef) -> Optional[ast.FunctionDef]:
 
 # ─── Lấy comment gần nhất ở trên (scene label) ────────────────────────────────
 
-def _build_lineno_to_comment(source: str) -> dict[int, str]:
+def _collect_scene_info(source: str) -> list[tuple[int, dict[str, Optional[str]]]]:
     """
-    Map: line_number → nội dung comment ngay trên hoặc cùng dòng.
-    Dùng để detect [SCENE X] labels.
-    """
-    lines = source.splitlines()
-    result: dict[int, str] = {}
-    pending_comment: Optional[str] = None
+    Quét toàn bộ source, trả về danh sách (line_number, scene_info) cho MỌI dòng
+    chứa comment dạng # [SCENE X] (không phụ thuộc dòng liền kề).
 
-    for i, line in enumerate(lines, start=1):
+    VD code có:
+        # [SCENE 1]
+        k_text = MathTex(...)          # dòng gán ở giữa
+        self.play(Write(k_text))
+    vẫn phải gắn "[SCENE 1]" cho self.play ở dòng sau đó.
+    """
+    labeled: list[tuple[int, dict[str, Optional[str]]]] = []
+    for i, line in enumerate(source.splitlines(), start=1):
         stripped = line.strip()
         if stripped.startswith("#"):
-            pending_comment = stripped.lstrip("#").strip()
-        else:
-            if pending_comment is not None:
-                result[i] = pending_comment
-                pending_comment = None
-    return result
+            info = _extract_scene_info(stripped)
+            if info:
+                labeled.append((i, info))
+    return labeled
+
+
+def _scene_info_for_line(lineno: int, labeled: list[tuple[int, dict[str, Optional[str]]]]) -> Optional[dict[str, Optional[str]]]:
+    """Trả về scene_info của comment [SCENE X] gần nhất nằm TRÊN dòng lineno."""
+    current: Optional[dict[str, Optional[str]]] = None
+    for line_no, info in labeled:
+        if line_no > lineno:
+            break
+        current = info
+    return current
 
 
 _SCENE_LABEL_RE = re.compile(r"\[SCENE\s*\d+\]", re.IGNORECASE)
+_SCENE_ID_RE = re.compile(r"scene_id\s*[:=]\s*([A-Za-z0-9_\-]+)", re.IGNORECASE)
 
 
-def _extract_scene_label(comment: Optional[str]) -> Optional[str]:
+def _extract_scene_info(comment: Optional[str]) -> Optional[dict[str, Optional[str]]]:
     if not comment:
         return None
-    m = _SCENE_LABEL_RE.search(comment)
-    return m.group(0) if m else None
+    text = comment.strip()
+    if text.startswith("#"):
+        text = text.lstrip("#").strip()
+    label = None
+    scene_id = None
+
+    m = _SCENE_LABEL_RE.search(text)
+    if m:
+        label = m.group(0)
+
+    m_id = _SCENE_ID_RE.search(text)
+    if m_id:
+        scene_id = m_id.group(1)
+    else:
+        rest = text.replace(label or "", "", 1).strip()
+        rest = re.sub(r"^scene_id\s*[:=]\s*", "", rest, flags=re.IGNORECASE)
+        rest = re.sub(r"^#\s*", "", rest)
+        tokens = re.split(r"\s+", rest.strip())
+        if tokens:
+            candidate = tokens[0].strip("[](){}")
+            if candidate and candidate != "#":
+                scene_id = candidate
+
+    if label is None and scene_id is None:
+        return None
+
+    return {"scene_label": label, "scene_id": scene_id}
 
 
 # ─── Core extractor ───────────────────────────────────────────────────────────
@@ -123,7 +160,7 @@ def extract_timings(source_path: str) -> dict:
         source = fh.read()
 
     tree = ast.parse(source, filename=source_path)
-    line_comments = _build_lineno_to_comment(source)
+    labeled_scene_info = _collect_scene_info(source)
 
     # Tìm class Scene
     scene_class = _find_scene_class(tree)
@@ -141,22 +178,15 @@ def extract_timings(source_path: str) -> dict:
 
     segments = []
     index = 1
-    current_scene_label: Optional[str] = None
 
-    for stmt in ast.walk(construct):
-        if not isinstance(stmt, ast.Expr):
-            continue
-        if not isinstance(stmt.value, ast.Call):
-            continue
+    relevant_calls = [stmt for stmt in ast.walk(construct) if isinstance(stmt, ast.Expr) and isinstance(stmt.value, ast.Call)]
+    relevant_calls.sort(key=lambda node: getattr(node, "lineno", 0))
 
+    for stmt in relevant_calls:
         call = stmt.value
         lineno = getattr(call, "lineno", None)
 
-        # Cập nhật scene label từ comment trên dòng hiện tại
-        if lineno and lineno in line_comments:
-            label = _extract_scene_label(line_comments[lineno])
-            if label:
-                current_scene_label = label
+        current_scene_info = _scene_info_for_line(lineno, labeled_scene_info) if lineno else None
 
         call_str = _call_to_str(call)
 
@@ -168,7 +198,8 @@ def extract_timings(source_path: str) -> dict:
             segments.append({
                 "index": index,
                 "line": lineno,
-                "scene_label": current_scene_label,
+                "scene_label": current_scene_info.get("scene_label") if current_scene_info else None,
+                "scene_id": current_scene_info.get("scene_id") if current_scene_info else None,
                 "type": "animation",
                 "call": call_str,
                 "run_time": run_time,
@@ -194,7 +225,8 @@ def extract_timings(source_path: str) -> dict:
             segments.append({
                 "index": index,
                 "line": lineno,
-                "scene_label": current_scene_label,
+                "scene_label": current_scene_info.get("scene_label") if current_scene_info else None,
+                "scene_id": current_scene_info.get("scene_id") if current_scene_info else None,
                 "type": "wait",
                 "call": call_str,
                 "run_time": None,
@@ -232,33 +264,54 @@ def build_tts_blocks(timings: dict) -> list[dict]:
     Hữu ích để căn chỉnh audio TTS với từng cảnh.
     """
     blocks: list[dict] = []
-    current_label: Optional[str] = None
+    segments = timings["segments"]
+    scene_key_candidates = [seg.get("scene_id") or seg.get("scene_label") for seg in segments]
+    if not any(scene_key_candidates):
+        elapsed = 0.0
+        for seg in segments:
+            duration = float(seg.get("duration", 0.0))
+            blocks.append({
+                "scene_label": None,
+                "scene_id": None,
+                "start_time": round(elapsed, 4),
+                "end_time": round(elapsed + duration, 4),
+                "duration": round(duration, 4),
+                "segment_indices": [seg["index"]],
+            })
+            elapsed += duration
+        return blocks
+
+    current_key: Optional[str] = None
+    current_scene_label: Optional[str] = None
     current_start: float = 0.0
     current_indices: list[int] = []
     elapsed: float = 0.0
 
-    for seg in timings["segments"]:
-        label = seg.get("scene_label")
-        if label and label != current_label:
+    for seg in segments:
+        scene_key = seg.get("scene_id") or seg.get("scene_label")
+        if scene_key and scene_key != current_key:
             if current_indices:
                 blocks.append({
-                    "scene_label": current_label,
+                    "scene_label": current_scene_label,
+                    "scene_id": current_key,
                     "start_time": round(current_start, 4),
                     "end_time": round(elapsed, 4),
                     "duration": round(elapsed - current_start, 4),
                     "segment_indices": current_indices,
                 })
-            current_label = label
+            current_key = scene_key
+            current_scene_label = seg.get("scene_label")
             current_start = elapsed
             current_indices = []
 
         current_indices.append(seg["index"])
-        elapsed += seg["duration"]
+        elapsed += float(seg.get("duration", 0.0))
 
     # Flush block cuối
     if current_indices:
         blocks.append({
-            "scene_label": current_label,
+            "scene_label": current_scene_label,
+            "scene_id": current_key,
             "start_time": round(current_start, 4),
             "end_time": round(elapsed, 4),
             "duration": round(elapsed - current_start, 4),

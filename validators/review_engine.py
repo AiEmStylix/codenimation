@@ -265,7 +265,7 @@ def _find_mathtx_issues(source: str, filename: str) -> list[ReviewIssue]:
             issues.append(ReviewIssue(
                 error_code="LATEX-005",
                 category="LaTeX",
-                severity="ERROR",
+                severity="WARNING",
                 message="MathTex chứa Unicode tiếng Việt hoặc văn bản không phù hợp.",
                 location={"file": filename, "line": source[: match.start()].count("\n") + 1, "column": match.start() - source.rfind("\n", 0, match.start()) - 1},
                 cause="MathTex chỉ nên chứa công thức toán thuần túy, không chứa tiếng Việt trực tiếp.",
@@ -275,6 +275,97 @@ def _find_mathtx_issues(source: str, filename: str) -> list[ReviewIssue]:
                 regenerate_scene=False,
                 auto_fixable=False,
             ))
+    return issues
+
+
+DARK_COLOR_PATTERN = re.compile(r"(?P<name>\b[A-Za-z_][A-Za-z_0-9]*)\s*=\s*(?P<value>[A-Za-z0-9_#.\"']+)", re.IGNORECASE)
+DARK_COLORS = {
+    "black", "#000000", "#000", "#0a0a0a", "#0a0a0a", "#111111", "#111",
+    "#1a1a1a", "#222222", "#222", "#1e3d36", "darkgreen", "darkblue",
+    "darkred", "darkgrey", "darkgray", "#333333", "#2b2b2b",
+}
+
+
+def _find_dark_color_issues(source: str, filename: str) -> list[ReviewIssue]:
+    """Cảnh báo màu tối gán cho nội dung (chữ/hình) — mất hút trên nền tối #1E3D36."""
+    issues: list[ReviewIssue] = []
+    for match in DARK_COLOR_PATTERN.finditer(source):
+        name = match.group("name").lower()
+        if name in {"background_color", "self.camera.background_color"}:
+            continue
+        value = match.group("value").strip().strip("'\"").lower()
+        value_display = match.group("value").strip()
+        if value in DARK_COLORS:
+            issues.append(ReviewIssue(
+                error_code="EMPH-004",
+                category="Emphasis",
+                severity="WARNING",
+                message=f"Gán màu tối {value_display} cho nội dung — sẽ mất hút trên nền #1E3D36.",
+                location={"file": filename, "line": source[: match.start()].count("\n") + 1, "column": match.start() - source.rfind("\n", 0, match.start()) - 1},
+                cause="Video dùng nền tối, màu tối sẽ làm chữ/hình không đọc được.",
+                fix_strategy="Thay bằng màu sáng trong bảng màu ngữ nghĩa (trắng, #7FD8E8, #FFD166, #5CE1A0, #FF6B6B).",
+                original=match.group(0),
+                fixed=None,
+                regenerate_scene=False,
+                auto_fixable=False,
+            ))
+    return issues
+
+
+def _has_index_slice(node: ast.AST) -> bool:
+    """Kiểm tra xem một AST node có chứa thao tác cắt index kiểu obj[0][-5:] hay không."""
+    for sub in ast.walk(node):
+        if isinstance(sub, ast.Subscript) and isinstance(sub.slice, ast.Slice):
+            return True
+    return False
+
+
+def _find_outermost_slice_subscript(node: ast.AST) -> ast.Subscript | None:
+    """Tìm Subscript ngoài cùng (đầu tiên theo DFS) có slice là Slice, ví dụ n_set[0][-5:]."""
+    stack = [node]
+    while stack:
+        current = stack.pop()
+        if isinstance(current, ast.Subscript) and isinstance(current.slice, ast.Slice):
+            return current
+        for child in reversed(list(ast.iter_child_nodes(current))):
+            stack.append(child)
+    return None
+
+
+def _find_emphasis_slice_issues(tree: ast.Module, source: str, filename: str) -> list[ReviewIssue]:
+    """Cảnh báo khi highlight bằng cách cắt index của MathTex (n_set[0][-5:]) — dễ nhấn nhầm đối tượng."""
+    issues: list[ReviewIssue] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call) and _is_self_play(node):
+            for arg in node.args:
+                if not _has_index_slice(arg):
+                    continue
+                target = _find_outermost_slice_subscript(arg)
+                if target is None:
+                    continue
+                original = _extract_source_segment(source, target)
+                if not original.strip():
+                    continue
+                base = _extract_source_segment(source, target.value)
+                start = _linecol_to_index(source, target.lineno, target.col_offset)
+                end = _linecol_to_index(source, target.end_lineno, target.end_col_offset)
+                inside_animation = isinstance(arg, ast.Call)
+                issues.append(ReviewIssue(
+                    error_code="EMPH-003",
+                    category="Emphasis",
+                    severity="ERROR" if inside_animation else "WARNING",
+                    message="Nhấn mạnh bằng cách cắt index của MathTex (vd n_set[0][-5:]) — dễ highlight nhầm đối tượng.",
+                    location={"file": filename, "line": target.lineno, "column": target.col_offset},
+                    cause="Index slicing trên Mobject không ổn định giữa các bản Manim và khó khớp với đối tượng cần nhấn.",
+                    fix_strategy="Tách MathTex/Text riêng cho ký hiệu cần highlight rồi ghép VGroup; nếu tạm thời thì highlight cả đối tượng gốc.",
+                    original=original,
+                    fixed=base if inside_animation else None,
+                    regenerate_scene=False,
+                    auto_fixable=inside_animation,
+                    replacement=base if inside_animation else None,
+                    start_index=start if inside_animation else None,
+                    end_index=end if inside_animation else None,
+                ))
     return issues
 
 
@@ -305,6 +396,8 @@ def _collect_review_issues(code_text: str, filename: str = "math_scene.py") -> l
     issues: list[ReviewIssue] = []
     issues.extend(_find_import_issues(tree, code_text, filename))
     issues.extend(_find_mathtx_issues(code_text, filename))
+    issues.extend(_find_emphasis_slice_issues(tree, code_text, filename))
+    issues.extend(_find_dark_color_issues(code_text, filename))
 
     for node in ast.walk(tree):
         if isinstance(node, ast.Call) and _is_self_play(node):

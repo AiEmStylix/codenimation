@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+import wave
 from pathlib import Path
 from typing import Any
 
@@ -15,6 +16,12 @@ def build_video_sync_manifest(timings: dict[str, Any], tts_manifest: dict[str, A
     segments = timings.get("segments") or []
     tts_segments = tts_manifest.get("segments", [])
 
+    blocks_by_label: dict[str, dict[str, Any]] = {}
+    for block in blocks:
+        label = normalize_label(block.get("scene_label"))
+        if label:
+            blocks_by_label.setdefault(label, block)
+
     def normalize_label(value: Any) -> str:
         if not isinstance(value, str):
             return ""
@@ -22,13 +29,17 @@ def build_video_sync_manifest(timings: dict[str, Any], tts_manifest: dict[str, A
 
     tts_by_label: dict[str, dict[str, Any]] = {}
     tts_by_name: dict[str, dict[str, Any]] = {}
+    tts_by_id: dict[str, dict[str, Any]] = {}
     for seg in tts_segments:
         label = normalize_label(seg.get("scene_label"))
         name = normalize_label(seg.get("scene_name"))
+        scene_id = normalize_label(seg.get("scene_id"))
         if label:
             tts_by_label[label] = seg
         if name:
             tts_by_name[name] = seg
+        if scene_id:
+            tts_by_id[scene_id] = seg
 
     sync_items: list[dict[str, Any]] = []
 
@@ -40,6 +51,8 @@ def build_video_sync_manifest(timings: dict[str, Any], tts_manifest: dict[str, A
                 tts_segment = tts_by_label[block_label]
             elif block_label and block_label in tts_by_name:
                 tts_segment = tts_by_name[block_label]
+            elif block_label and block_label in tts_by_id:
+                tts_segment = tts_by_id[block_label]
             elif index <= len(tts_segments):
                 tts_segment = tts_segments[index - 1]
 
@@ -47,6 +60,7 @@ def build_video_sync_manifest(timings: dict[str, Any], tts_manifest: dict[str, A
                 {
                     "index": index,
                     "scene_label": block.get("scene_label"),
+                    "scene_id": _fallback_scene_id(tts_segment, block, block_label, blocks_by_label),
                     "scene_name": tts_segment.get("scene_name") if tts_segment else None,
                     "start_time": block.get("start_time", 0.0),
                     "end_time": block.get("end_time", 0.0),
@@ -73,6 +87,7 @@ def build_video_sync_manifest(timings: dict[str, Any], tts_manifest: dict[str, A
                 {
                     "index": index,
                     "scene_label": segment.get("scene_label"),
+                    "scene_id": tts_segment.get("scene_id") if tts_segment else None,
                     "scene_name": tts_segment.get("scene_name") if tts_segment else None,
                     "start_time": start_time,
                     "end_time": end_time,
@@ -85,8 +100,8 @@ def build_video_sync_manifest(timings: dict[str, Any], tts_manifest: dict[str, A
             )
 
     subtitle_path = output_dir / "subtitles.srt"
+    _scale_times_to_audio(sync_items, timings, tts_manifest)
     _write_subtitles(sync_items, subtitle_path)
-
     manifest_path = output_dir / "sync_manifest.json"
     with manifest_path.open("w", encoding="utf-8") as fh:
         json.dump(
@@ -108,6 +123,23 @@ def build_video_sync_manifest(timings: dict[str, Any], tts_manifest: dict[str, A
     }
 
 
+def _fallback_scene_id(
+    tts_segment: dict[str, Any] | None,
+    block: dict[str, Any],
+    block_label: str,
+    blocks_by_label: dict[str, dict[str, Any]],
+) -> Any:
+    """Lấy scene_id từ TTS segment; nếu thiếu thì fallback sang timings block."""
+    if tts_segment and tts_segment.get("scene_id"):
+        return tts_segment.get("scene_id")
+    if block.get("scene_id"):
+        return block.get("scene_id")
+    fallback_block = blocks_by_label.get(block_label)
+    if fallback_block and fallback_block.get("scene_id"):
+        return fallback_block.get("scene_id")
+    return None
+
+
 def _write_subtitles(sync_items: list[dict[str, Any]], output_path: Path) -> None:
     lines: list[str] = []
     for index, item in enumerate(sync_items, start=1):
@@ -120,6 +152,40 @@ def _write_subtitles(sync_items: list[dict[str, Any]], output_path: Path) -> Non
         lines.append("")
 
     output_path.write_text("\n".join(lines), encoding="utf-8")
+
+
+def _scale_times_to_audio(sync_items: list[dict[str, Any]], timings: dict[str, Any], tts_manifest: dict[str, Any]) -> None:
+    """Nếu audio tổng hợp dài hơn video, timeline phụ đề được scale theo hệ số tăng tốc video.
+
+    Hệ số scale = audio_duration / video_duration (đúng bằng tốc độ tăng tốc video
+    trong attach_audio_to_video), nhờ đó phụ đề khớp chính xác với cảnh sau khi speed-up.
+    """
+    video_duration = float(timings.get("total_duration", 0.0) or 0.0)
+    audio_path = tts_manifest.get("combined_audio_file")
+    audio_duration = 0.0
+    if audio_path:
+        audio_path = Path(audio_path)
+        if audio_path.exists():
+            try:
+                with wave.open(str(audio_path), "rb") as wf:
+                    audio_duration = wf.getnframes() / wf.getframerate()
+            except Exception:
+                pass
+
+    scale = 1.0
+    if audio_duration > video_duration and video_duration > 0:
+        scale = audio_duration / video_duration
+
+    if scale <= 1.0:
+        return
+
+    for item in sync_items:
+        if isinstance(item.get("start_time"), (int, float)):
+            item["start_time"] = round(float(item["start_time"]) * scale, 4)
+        if isinstance(item.get("end_time"), (int, float)):
+            item["end_time"] = round(float(item["end_time"]) * scale, 4)
+        if isinstance(item.get("duration"), (int, float)):
+            item["duration"] = round(float(item["duration"]) * scale, 4)
 
 
 def _ms_to_srt_time(total_ms: int) -> str:

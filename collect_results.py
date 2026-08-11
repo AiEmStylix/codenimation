@@ -54,7 +54,7 @@ def _slugify(text: str, max_len: int = 40) -> str:
 
 def _make_session_id(topic: str) -> str:
     """Tạo session ID theo dạng: YYYYMMDD_HHMMSS_<slug>."""
-    ts = datetime.now().strftime("%Y%M%D_%H%M%S")  # giây + mili giây tránh trùng
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
     slug = _slugify(topic)
     return f"{ts}_{slug}"
 

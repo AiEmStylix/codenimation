@@ -1,7 +1,7 @@
 from .script_generator import generate_script
 from .code_generator import generate_manim_code
 from .lesson_analyzer import analyze_lesson
-from .solution_analyzer import analyze_solution
+from .solution_analyzer import analyze_solution, verify_solution
 from .pedagogy_designer import design_pedagogy
 from .storyboard_planner import plan_storyboard
 from .animation_planner import plan_animation
@@ -15,6 +15,7 @@ __all__ = [
     "generate_manim_code",
     "analyze_lesson",
     "analyze_solution",
+    "verify_solution",
     "design_pedagogy",
     "plan_storyboard",
     "plan_animation",
