@@ -10,7 +10,7 @@ import shutil
 from datetime import datetime
 from pathlib import Path
 from typing import Any
-from openai import OpenAI
+from langfuse.openai import OpenAI
 from dotenv import load_dotenv
 from generators import (
     generate_script,
