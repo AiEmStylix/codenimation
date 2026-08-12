@@ -12,6 +12,11 @@ def build_video_sync_manifest(timings: dict[str, Any], tts_manifest: dict[str, A
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    def normalize_label(value: Any) -> str:
+        if not isinstance(value, str):
+            return ""
+        return value.strip().lower()
+
     blocks = timings.get("tts_blocks") or []
     segments = timings.get("segments") or []
     tts_segments = tts_manifest.get("segments", [])
@@ -21,11 +26,6 @@ def build_video_sync_manifest(timings: dict[str, Any], tts_manifest: dict[str, A
         label = normalize_label(block.get("scene_label"))
         if label:
             blocks_by_label.setdefault(label, block)
-
-    def normalize_label(value: Any) -> str:
-        if not isinstance(value, str):
-            return ""
-        return value.strip().lower()
 
     tts_by_label: dict[str, dict[str, Any]] = {}
     tts_by_name: dict[str, dict[str, Any]] = {}

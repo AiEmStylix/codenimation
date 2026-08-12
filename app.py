@@ -447,7 +447,7 @@ if start_btn:
 
                 # Bước 4: Thiết kế sư phạm
                 st.write("⏳ Đang thiết kế sư phạm...")
-                pedagogy_design = cached_run.get("pedagogy_design") or design_pedagogy(solution_analysis, lesson_analysis, client)
+                pedagogy_design = cached_run.get("pedagogy_design") or design_pedagogy(math_input, solution_analysis, lesson_analysis, client)
                 cached_run["pedagogy_design"] = pedagogy_design
                 with st.expander("🎯 Kế hoạch sư phạm"):
                     st.json(pedagogy_design)

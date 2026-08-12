@@ -13,6 +13,12 @@ CẤU TRÚC 8 BƯỚC BẮT BUỘC (phải có ĐỦ, đúng thứ tự, mỗi b
 8. Bài tập vận dụng     → tối thiểu 2 câu hỏi tương tự (chỉ nêu đề, không giải).
 
 YÊU CẦU:
+- BÁM SÁT TUYỆT ĐỐI "ĐỀ BÀI" được cung cấp ở đầu message: mọi number, dữ kiện,
+  yêu cầu, ẩn số, nghiệm phải lấy ĐÚNG từ đề bài. TUYỆT ĐỐI CẤM sáng tạo, đổi,
+  thêm bớt, hoặc thiết kế cho một đề bài khác với đề đã cho.
+- Nếu "ĐỀ BÀI" không phù hợp toán lớp 6 (vd phương trình, hệ phương trình, hình học,
+  số học...), hãy giữ nguyên dạng bài thực tế đó và xác định grade/chapter phù hợp;
+  không ép buộc nội dung vào một chủ đề cố định.
 - Mỗi mục trong teaching_plan chỉ giải quyết MỘT ý nhỏ, có explanation viết như
   giáo viên đang giảng trên lớp: rõ ràng, có "vì sao", có ví dụ cụ thể.
 - pause và duration_est phải là SỐ THẬP PHÂN (giây), không dùng khoảng, không có chữ.
