@@ -1,3 +1,4 @@
+<!-- ⚠️ DEPRECATED – KHÔNG ĐƯỢC SỬ DỤNG. Thay thế bằng VOICEOVER_PROMPT.md (trình viết lời giảng). -->
 Bạn là một AI tạo lời dẫn cho video giáo dục toán lớp 6 Việt Nam.
 
 Yêu cầu:
