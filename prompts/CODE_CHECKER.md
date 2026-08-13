@@ -1,3 +1,4 @@
+<!-- ⚠️ DEPRECATED – KHÔNG ĐƯỢC SỬ DỤNG. Việc review code được thực hiện nội bộ bởi validators/review_engine.py (không gọi LLM). -->
 Bạn là một trình kiểm tra code Python cho Manim Community Edition.
 
 Nhiệm vụ của bạn là phát hiện lỗi nghiêm trọng trước khi render:

@@ -53,7 +53,7 @@ client = OpenAI(
 # ==========================================
 def render_video(filename="math_scene.py", scene_name="MathProblemScene", media_dir: str | Path | None = None):
     """Render Manim scene thành video chất lượng cao hơn vào media_dir nếu có."""
-    command = ["manim", "-qm", filename, scene_name]
+    command = ["manim", "-qh", filename, scene_name]
     if media_dir is not None:
         command.extend(["--media_dir", str(media_dir)])
     env = dict(os.environ, PYTHONIOENCODING="utf-8")
@@ -216,6 +216,20 @@ def _validate_scene_alignment(storyboard: dict[str, Any], animation_plan: dict[s
 
 def _count_scene_markers(code_text: str) -> int:
     return len(re.findall(r"#\s*\[SCENE\s*\d+\]", code_text, flags=re.IGNORECASE))
+
+
+_STRUCTURAL_PREFIXES = ("PY-", "IMP-", "MAN-")
+
+
+def _is_structural_issue(issue: dict[str, Any]) -> bool:
+    """Lỗi làm hỏng cấu trúc chương trình (cú pháp, import, API) — phải dừng pipeline.
+
+    Các lỗi CHẤT LƯỢNG (PACE-, LATEX-, EMPH-...) không dừng pipeline: chỉ cảnh báo
+    và tiếp tục render để không chặn người dùng vì video chưa hoàn hảo.
+    """
+    if issue.get("severity") == "CRITICAL":
+        return True
+    return str(issue.get("error_code", "")).startswith(_STRUCTURAL_PREFIXES)
 
 
 def _resolve_rendered_video_path(media_dir: Path, scene_name: str) -> Path:
@@ -433,7 +447,7 @@ if start_btn:
 
                 # Bước 2: Sinh kịch bản
                 st.write("⏳ Đang sinh kịch bản...")
-                script = cached_run.get("script") or generate_script(math_input, client)
+                script = cached_run.get("script") or generate_script(math_input, client, solution_input if solution_input else None)
                 cached_run["script"] = script
                 with st.expander("📝 Kịch bản được tạo"):
                     st.text(script)
@@ -447,14 +461,20 @@ if start_btn:
 
                 # Bước 4: Thiết kế sư phạm
                 st.write("⏳ Đang thiết kế sư phạm...")
-                pedagogy_design = cached_run.get("pedagogy_design") or design_pedagogy(math_input, solution_analysis, lesson_analysis, client)
+                pedagogy_design = cached_run.get("pedagogy_design") or design_pedagogy(
+                    math_input,
+                    solution_analysis,
+                    lesson_analysis,
+                    client,
+                    teacher_solution=solution_input if solution_input else None,
+                )
                 cached_run["pedagogy_design"] = pedagogy_design
                 with st.expander("🎯 Kế hoạch sư phạm"):
                     st.json(pedagogy_design)
 
                 # Bước 5: Lập storyboard
                 st.write("⏳ Đang lập storyboard...")
-                storyboard = cached_run.get("storyboard") or plan_storyboard(math_input, pedagogy_design, client)
+                storyboard = cached_run.get("storyboard") or plan_storyboard(math_input, pedagogy_design, client, solution_text=solution_input if solution_input else None)
                 missing_parts = _check_subquestion_coverage(math_input, storyboard)
                 if missing_parts:
                     st.warning(
@@ -468,7 +488,7 @@ if start_btn:
                         + ", ".join(f"{letter}" for letter in missing_parts)
                         + " (scene_id chứa tên câu, vd scene_x_mau_a). Không biến câu trong đề thành bài tập vận dụng."
                     )
-                    storyboard = plan_storyboard(math_input, pedagogy_design, client, extra_instructions=extra_instructions)
+                    storyboard = plan_storyboard(math_input, pedagogy_design, client, solution_text=solution_input if solution_input else None, extra_instructions=extra_instructions)
                 storyboard = add_scene_ids_to_storyboard(storyboard)
                 cached_run["storyboard"] = storyboard
                 with st.expander("📋 Storyboard"):
@@ -518,7 +538,25 @@ if start_btn:
                         "cause": "Code generator phải giữ nguyên số lượng scene và chèn # [SCENE N] cho từng scene.",
                         "location": {"file": "math_scene.py", "line": 0, "column": 0},
                     }
-                    code = repair_manim_code(code, repair_error, "Missing scene markers / scene count mismatch", client)
+                    for marker_attempt in range(3):
+                        st.write(
+                            f"🔄 Sửa lại code để khôi phục # [SCENE n] (lần {marker_attempt + 1})..."
+                        )
+                        code = repair_manim_code(
+                            code,
+                            repair_error,
+                            "Missing scene markers / scene count mismatch. PHẢI chèn đủ comment "
+                            f"# [SCENE n] scene_id cho {len(storyboard_names)} scene theo đúng thứ tự storyboard.",
+                            client,
+                        )
+                        if _count_scene_markers(code) >= len(storyboard_names):
+                            break
+                    if _count_scene_markers(code) < len(storyboard_names):
+                        st.warning(
+                            f"⚠️ Code sau khi sửa vẫn thiếu scene marker "
+                            f"({_count_scene_markers(code)}/{len(storyboard_names)}). "
+                            "Phụ đề/lời giảng có thể không khớp từng cảnh — kiểm tra thủ công nếu cần."
+                        )
 
                 # Bước 8.1: Review code và auto-fix trước khi lưu
                 review_result = run_review_cycle(code)
@@ -529,11 +567,37 @@ if start_btn:
                 with st.expander("🧾 Kết quả Code Review"):
                     st.json(review_result)
 
-                if has_issues:
+                blocking = [issue for issue in review_result["issues"] if issue["severity"] in ("CRITICAL", "ERROR")]
+                if blocking:
+                    st.write(
+                        f"🔄 Có {len(blocking)} lỗi nghiêm trọng (vd {blocking[0]['error_code']}). "
+                        "Đang cho AI sửa mã theo lỗi (không sinh code ngoài ManimCE)..."
+                    )
+                    repair_payload = {
+                        "error_code": blocking[0]["error_code"],
+                        "message": blocking[0]["message"],
+                        "cause": blocking[0]["cause"],
+                        "location": blocking[0]["location"],
+                    }
+                    raw_errors = "\n".join(
+                        f"[{issue['error_code']}] {issue['message']}" for issue in blocking
+                    )
+                    fixed_code = repair_manim_code(fixed_code, repair_payload, raw_errors, client)
+                    review_result = run_review_cycle(fixed_code)
+                    fixed_code = review_result["fixed_code"]
+                    with st.expander("🧾 Kết quả review sau khi sửa bằng AI"):
+                        st.json(review_result)
                     blocking = [issue for issue in review_result["issues"] if issue["severity"] in ("CRITICAL", "ERROR")]
-                    if blocking:
-                        st.error("❌ Code có lỗi nghiêm trọng sau khi review. Vui lòng kiểm tra chi tiết và sửa thủ công trước khi render.")
+                    structural = [issue for issue in blocking if _is_structural_issue(issue)]
+                    if structural:
+                        st.error("❌ Code vẫn còn lỗi nghiêm trọng sau khi sửa. Vui lòng kiểm tra thủ công trước khi render.")
                         st.stop()
+                    elif blocking:
+                        st.warning(
+                            f"⚠️ Code còn {len(blocking)} vấn đề chất lượng "
+                            f"(vd {blocking[0]['error_code']}): {blocking[0]['message']} "
+                            "Video vẫn tiếp tục render nhưng bạn nên kiểm tra thủ công."
+                        )
 
                 with st.expander("💻 Xem code Python"):
                     st.code(fixed_code, language="python")
@@ -625,7 +689,11 @@ if start_btn:
                     _log_pipeline_failure("duration_over_max", "Video duration exceeded maximum", {"total_duration": total_duration, "max": MAX_VIDEO_DURATION})
                     st.stop()
                 if total_duration < MIN_VIDEO_DURATION:
-                    st.warning(f"⚠️ Video hiện tại ngắn hơn mục tiêu ({total_duration:.1f}s < {MIN_VIDEO_DURATION:.0f}s). Pipeline sẽ giữ nguyên nội dung và dựa vào voiceover/hold_duration để điều chỉnh thời gian hiển thị thay vì chèn self.wait() mù.")
+                    st.info(
+                        f"⏱️ Video dự kiến dài {total_duration:.1f}s. Hệ thống sẽ tự sinh lời giảng "
+                        "và điều chỉnh thời gian hiển thị từng cảnh (hold_duration) để video và "
+                        "lời giảng khớp chuẩn với nhau, không chèn khoảng chờ trống."
+                    )
 
                 # Bước 9: TTS + đồng bộ timeline
                 st.write("🎙️ Đang sinh audio bằng Vieneu và đồng bộ timeline...")
